@@ -29,7 +29,9 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist/backend | Out-Null
           robocopy backend dist/backend /E /XD venv
-          if ($LASTEXITCODE -gt 7) { exit $LASTEXITCODE }
+          $robocopyExitCode = $LASTEXITCODE
+          if ($robocopyExitCode -gt 7) { exit $robocopyExitCode }
+          exit 0
 
       - name: Copy frontend if present without node_modules
         shell: pwsh
@@ -37,10 +39,12 @@ jobs:
           if (Test-Path frontend) {
             New-Item -ItemType Directory -Force -Path dist/frontend | Out-Null
             robocopy frontend dist/frontend /E /XD node_modules
-            if ($LASTEXITCODE -gt 7) { exit $LASTEXITCODE }
+            $robocopyExitCode = $LASTEXITCODE
+            if ($robocopyExitCode -gt 7) { exit $robocopyExitCode }
           } else {
             Write-Host "frontend directory not found; skipping copy."
           }
+          exit 0
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
