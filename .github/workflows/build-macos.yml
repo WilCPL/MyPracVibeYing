@@ -1,0 +1,42 @@
+name: Build macOS Test Artifact
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare dist folder
+        run: |
+          mkdir -p dist
+
+      - name: Copy startup script and requirements
+        run: |
+          cp requirements.txt dist/
+          cp run_app.sh dist/
+
+      - name: Copy backend without virtual environment
+        run: |
+          rsync -av --exclude 'venv' backend/ dist/backend
+
+      - name: Copy frontend if present without node_modules
+        run: |
+          if [ -d frontend ]; then
+            rsync -av --exclude 'node_modules' frontend/ dist/frontend
+          else
+            echo "frontend directory not found; skipping copy."
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-test-dist
+          path: dist/
+          if-no-files-found: error
