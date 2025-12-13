@@ -1,0 +1,50 @@
+name: Build Windows Test Artifact
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare dist folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+
+      - name: Copy run_app.bat and requirements.txt
+        shell: pwsh
+        run: |
+          Copy-Item run_app.bat dist/ -Force -ErrorAction Stop
+          Copy-Item requirements.txt dist/ -Force -ErrorAction Stop
+
+      - name: Copy backend without virtual environment
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/backend | Out-Null
+          robocopy backend dist/backend /E /XD venv
+          if ($LASTEXITCODE -gt 7) { exit $LASTEXITCODE }
+
+      - name: Copy frontend if present without node_modules
+        shell: pwsh
+        run: |
+          if (Test-Path frontend) {
+            New-Item -ItemType Directory -Force -Path dist/frontend | Out-Null
+            robocopy frontend dist/frontend /E /XD node_modules
+            if ($LASTEXITCODE -gt 7) { exit $LASTEXITCODE }
+          } else {
+            Write-Host "frontend directory not found; skipping copy."
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test-dist
+          path: dist/
+          if-no-files-found: error
