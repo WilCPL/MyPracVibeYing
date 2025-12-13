@@ -13,37 +13,41 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare dist folder
+      - name: Package files for artifact
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $ErrorActionPreference = 'Stop'
 
-      - name: Copy run_app.bat and requirements.txt
-        shell: pwsh
-        run: |
-          Copy-Item run_app.bat dist/ -Force -ErrorAction Stop
-          Copy-Item requirements.txt dist/ -Force -ErrorAction Stop
+          function Copy-WithRobocopy {
+            param(
+              [Parameter(Mandatory = $true)][string]$Source,
+              [Parameter(Mandatory = $true)][string]$Destination,
+              [string[]]$ExcludeDirs = @()
+            )
 
-      - name: Copy backend without virtual environment
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist/backend | Out-Null
-          robocopy backend dist/backend /E /XD venv
-          $exitCode = $LASTEXITCODE
-          if ($exitCode -gt 7) { exit $exitCode }
-          Write-Host "Robocopy backend completed with code $exitCode (treated as success)."
-          exit 0
+            New-Item -ItemType Directory -Force -Path $Destination | Out-Null
 
-      - name: Copy frontend if present without node_modules
-        shell: pwsh
-        run: |
-          if (Test-Path frontend) {
-            New-Item -ItemType Directory -Force -Path dist/frontend | Out-Null
-            robocopy frontend dist/frontend /E /XD node_modules
+            $excludeArgs = @()
+            foreach ($dir in $ExcludeDirs) {
+              $excludeArgs += @("/XD", $dir)
+            }
+
+            robocopy $Source $Destination /E @excludeArgs
             $exitCode = $LASTEXITCODE
-            if ($exitCode -gt 7) { exit $exitCode }
-            Write-Host "Robocopy frontend completed with code $exitCode (treated as success)."
-            exit 0
+            if ($exitCode -gt 7) {
+              throw "Robocopy failed for $Source with exit code $exitCode"
+            }
+            Write-Host "Robocopy for $Source completed with code $exitCode (treated as success)."
+          }
+
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item run_app.bat dist/ -Force
+          Copy-Item requirements.txt dist/ -Force
+
+          Copy-WithRobocopy -Source "backend" -Destination "dist/backend" -ExcludeDirs @("venv")
+
+          if (Test-Path frontend) {
+            Copy-WithRobocopy -Source "frontend" -Destination "dist/frontend" -ExcludeDirs @("node_modules")
           } else {
             Write-Host "frontend directory not found; skipping copy."
           }
